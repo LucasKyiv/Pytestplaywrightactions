@@ -27,10 +27,6 @@ jobs:
       run: |
         playwright install --with-deps
 
-    - name: Create auth state
-      run: |
-        python scripts/create_auth_state.py
-
     - name: Run tests
       env:
         BROWSER: ${{ github.event.inputs.browser || 'chromium' }}
