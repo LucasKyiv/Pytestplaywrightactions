@@ -15,7 +15,10 @@ def test_locator_example(page: Page) -> None:
 
 def test_countries_dropdown(page: Page):
     page.goto("https://selenium08.blogspot.com/2019/11/dropdown.html")
-    page.get_by_role("link", name="OK").click()
+    try:
+        page.get_by_role("link", name="OK").click(timeout=3000)
+    except:
+        pass
 
 
     countries_dropdown = page.locator("select:has(option[value='AF'])")

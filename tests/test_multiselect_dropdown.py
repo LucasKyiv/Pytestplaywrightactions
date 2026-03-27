@@ -4,7 +4,10 @@ from playwright.sync_api import Page, expect
 def test_example(page: Page) -> None:
     # Go to https://selenium08.blogspot.com/2019/11/dropdown.html
     page.goto("https://selenium08.blogspot.com/2019/11/dropdown.html")
-    page.get_by_role("link", name="OK").click()
+    try:
+        page.get_by_role("link", name="OK").click(timeout=3000)
+    except:
+        pass
     # page.locator("select[name='Month']").select_option(['Sept', 'May', 'July'])
     # page.locator("select[name='Month']").select_option(value='Feb', index=6, label='January')
     # page.locator("select[name='Month']").select_option(index=[2, 4, 6])
