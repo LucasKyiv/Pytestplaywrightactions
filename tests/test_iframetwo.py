@@ -1,7 +1,11 @@
 from playwright.sync_api import Page, expect
 
 def test_handle_iframe_by_name(page: Page) -> None:
-    page.goto("https://www.rediff.com/")
+    page.goto(
+        "https://www.rediff.com/",
+        timeout=60000,  # 60s timeout
+        wait_until="domcontentloaded"
+    )
 
     # Wait for iframe to appear
     page.wait_for_selector("iframe[name='moneyiframe']")
