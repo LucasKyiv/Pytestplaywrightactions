@@ -5,7 +5,7 @@ def test_field_editable(page: Page) -> None:
     page.goto("https://jsfiddle.net/L96svw3c")
 
     frame = page.frame_locator("iframe[name='result']")
-    editable_field = frame.locator("#readonly")
+    editable_field = frame.locator("input:not([readonly])")
 
     expect(editable_field).to_be_editable()
 
@@ -14,6 +14,6 @@ def test_read_only_field(page: Page) -> None:
     page.goto("https://jsfiddle.net/L96svw3c")
 
     frame = page.frame_locator("iframe[name='result']")
-    read_only_field = frame.locator("#readOnly")
+    read_only_field = frame.locator("input[readonly]")
 
     expect(read_only_field).not_to_be_editable()
