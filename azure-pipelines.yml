@@ -1,0 +1,40 @@
+trigger:
+- main
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+
+- checkout: self
+
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: '3.11'
+
+- script: |
+    python -m pip install --upgrade pip
+    pip install -r requirements.txt
+    playwright install --with-deps
+  displayName: Install Dependencies
+
+- script: |
+    pytest \
+      --browser chromium \
+      --tracing retain-on-failure \
+      --video retain-on-failure \
+      --screenshot only-on-failure \
+      --junitxml=test-results.xml
+  displayName: Execute Tests
+
+- task: PublishTestResults@2
+  condition: succeededOrFailed()
+  inputs:
+    testResultsFormat: JUnit
+    testResultsFiles: test-results.xml
+
+- task: PublishBuildArtifacts@1
+  condition: succeededOrFailed()
+  inputs:
+    pathToPublish: test-results
+    artifactName: playwright-report
