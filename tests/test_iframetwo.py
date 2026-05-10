@@ -8,7 +8,7 @@ def test_handle_iframe_by_name(page: Page) -> None:
     )
 
     # Wait until at least one iframe appears
-    page.wait_for_selector("iframe", timeout=30000)
+    page.wait_for_selector("iframe",state="attached", timeout=30000)
 
 
     target_frame = None
