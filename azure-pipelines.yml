@@ -6,35 +6,50 @@ pool:
 
 steps:
 
+# Checkout repository
 - checkout: self
 
+# Setup Python
 - task: UsePythonVersion@0
   inputs:
-    versionSpec: '3.11'
+    versionSpec: '3.12'
 
+# Install dependencies
 - script: |
     python -m pip install --upgrade pip
     pip install -r requirements.txt
-    playwright install --with-deps
+    
+    # Install Playwright browsers + OS dependencies
+    python -m playwright install --with-deps
   displayName: Install Dependencies
 
+# Run tests
 - script: |
-    pytest \
+    mkdir -p test-results
+
+    pytest -n auto \
       --browser chromium \
       --tracing retain-on-failure \
       --video retain-on-failure \
       --screenshot only-on-failure \
-      --junitxml=test-results.xml
+      --junitxml=test-results/results.xml
   displayName: Execute Tests
+  env:
+    ADMIN_USERNAME: $(ADMIN_USERNAME)
+    ADMIN_PASSWORD: $(ADMIN_PASSWORD)
+    BROWSER: chromium
 
+# Publish JUnit results
 - task: PublishTestResults@2
   condition: succeededOrFailed()
   inputs:
-    testResultsFormat: JUnit
-    testResultsFiles: test-results.xml
+    testResultsFormat: 'JUnit'
+    testResultsFiles: 'test-results/results.xml'
+    testRunTitle: 'Playwright Tests'
 
+# Upload artifacts
 - task: PublishBuildArtifacts@1
   condition: succeededOrFailed()
   inputs:
-    pathToPublish: test-results
-    artifactName: playwright-report
+    pathToPublish: 'test-results'
+    artifactName: 'playwright-results'
