@@ -12,6 +12,7 @@ def test_google_search_input(page: Page) -> None:
     accept_buttons = [
         page.get_by_role("button", name="Aceitar tudo"),
         page.get_by_role("button", name="Accept all"),
+        page.get_by_role("button", name="Alles accepteren")
     ]
 
     for button in accept_buttons:
