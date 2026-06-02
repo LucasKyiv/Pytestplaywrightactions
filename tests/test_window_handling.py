@@ -1,11 +1,7 @@
-from playwright.sync_api import Playwright, sync_playwright, expect
+from playwright.sync_api import Page, expect
 
 
-def test_run(playwright: Playwright) -> None:
-    browser = playwright.chromium.launch()
-    context = browser.new_context()
-    # Open new page
-    page = context.new_page()
+def test_run(page: Page) -> None:
 
     # Go to https://the-internet.herokuapp.com/windows
     page.goto("https://the-internet.herokuapp.com/windows", timeout=60000)
