@@ -6,7 +6,51 @@ on:
   pull_request:
 
 jobs:
-  test:
+  api-tests:
+    name: API Tests (Newman)
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install Newman + reporters
+      run: |
+        npm install -g newman newman-reporter-htmlextra
+
+    - name: Run API tests
+      run: |
+        mkdir -p api-tests/results
+        newman run api-tests/RestfulBooker.postman_collection.json \
+          --reporters cli,junit,htmlextra \
+          --reporter-junit-export api-tests/results/junit-results.xml \
+          --reporter-htmlextra-export api-tests/results/report.html \
+          --reporter-htmlextra-title "Restful Booker API Tests"
+
+    - name: Upload API test HTML report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: api-tests-html-report
+        path: api-tests/results/report.html
+        if-no-files-found: warn
+
+    - name: Upload API test JUnit results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: api-tests-junit-results
+        path: api-tests/results/junit-results.xml
+        if-no-files-found: warn
+
+  playwright-tests:
+    name: Playwright Tests
+    needs: api-tests
     runs-on: ubuntu-latest
 
     steps:
@@ -34,7 +78,7 @@ jobs:
         ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
       run: |
         pytest -n auto
-        
+
     - name: Upload pytest-html report
       if: always()
       uses: actions/upload-artifact@v4

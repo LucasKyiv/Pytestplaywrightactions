@@ -4,52 +4,101 @@ pr: none
 pool:
   vmImage: ubuntu-latest
 
-steps:
+stages:
 
-# Checkout repository
-- checkout: self
+# ---------- Stage 1: API Tests (Newman) ----------
+- stage: APITests
+  displayName: API Tests
+  jobs:
+  - job: RunAPITests
+    displayName: Run Newman API Tests
+    steps:
 
-# Setup Python
-- task: UsePythonVersion@0
-  inputs:
-    versionSpec: '3.12'
+    - checkout: self
 
-# Install dependencies
-- script: |
-    python -m pip install --upgrade pip
-    pip install -r requirements.txt
-    
-    # Install Playwright browsers + OS dependencies
-    python -m playwright install --with-deps
-  displayName: Install Dependencies
+    - task: NodeTool@0
+      inputs:
+        versionSpec: '20.x'
+      displayName: Setup Node.js
 
-# Run tests
-- script: |
-    mkdir -p test-results
+    - script: |
+        npm install -g newman newman-reporter-htmlextra
+      displayName: Install Newman + reporters
 
-    pytest -n auto \
-      --browser chromium \
-      --tracing retain-on-failure \
-      --video retain-on-failure \
-      --screenshot only-on-failure \
-      --junitxml=test-results/results.xml
-  displayName: Execute Tests
-  env:
-    ADMIN_USERNAME: $(ADMIN_USERNAME)
-    ADMIN_PASSWORD: $(ADMIN_PASSWORD)
-    BROWSER: chromium
+    - script: |
+        mkdir -p api-tests/results
+        newman run api-tests/RestfulBooker.postman_collection.json \
+          --reporters cli,junit,htmlextra \
+          --reporter-junit-export api-tests/results/junit-results.xml \
+          --reporter-htmlextra-export api-tests/results/report.html \
+          --reporter-htmlextra-title "Restful Booker API Tests"
+      displayName: Execute API Tests
 
-# Publish JUnit results
-- task: PublishTestResults@2
-  condition: succeededOrFailed()
-  inputs:
-    testResultsFormat: 'JUnit'
-    testResultsFiles: 'test-results/results.xml'
-    testRunTitle: 'Playwright Tests'
+    - task: PublishTestResults@2
+      condition: succeededOrFailed()
+      inputs:
+        testResultsFormat: 'JUnit'
+        testResultsFiles: 'api-tests/results/junit-results.xml'
+        testRunTitle: 'API Tests (Newman)'
+        failTaskOnFailedTests: true
+      displayName: Publish API JUnit Results
 
-# Upload artifacts
-- task: PublishBuildArtifacts@1
-  condition: succeededOrFailed()
-  inputs:
-    pathToPublish: 'test-results'
-    artifactName: 'playwright-results'
+    - task: PublishBuildArtifacts@1
+      condition: succeededOrFailed()
+      inputs:
+        pathToPublish: 'api-tests/results'
+        artifactName: 'api-tests-results'
+      displayName: Publish API Test Artifacts
+
+# ---------- Stage 2: Playwright UI Tests ----------
+- stage: PlaywrightTests
+  displayName: Playwright Tests
+  dependsOn: APITests
+  condition: succeeded()
+  jobs:
+  - job: RunPlaywrightTests
+    displayName: Run Playwright Tests
+    steps:
+
+    - checkout: self
+
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '3.12'
+      displayName: Setup Python
+
+    - script: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+        # Install Playwright browsers + OS dependencies
+        python -m playwright install --with-deps
+      displayName: Install Dependencies
+
+    - script: |
+        mkdir -p test-results
+
+        pytest -n auto \
+          --browser chromium \
+          --tracing retain-on-failure \
+          --video retain-on-failure \
+          --screenshot only-on-failure \
+          --junitxml=test-results/results.xml
+      displayName: Execute Tests
+      env:
+        ADMIN_USERNAME: $(ADMIN_USERNAME)
+        ADMIN_PASSWORD: $(ADMIN_PASSWORD)
+        BROWSER: chromium
+
+    - task: PublishTestResults@2
+      condition: succeededOrFailed()
+      inputs:
+        testResultsFormat: 'JUnit'
+        testResultsFiles: 'test-results/results.xml'
+        testRunTitle: 'Playwright Tests'
+
+    - task: PublishBuildArtifacts@1
+      condition: succeededOrFailed()
+      inputs:
+        pathToPublish: 'test-results'
+        artifactName: 'playwright-results'
