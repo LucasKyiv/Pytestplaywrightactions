@@ -70,26 +70,43 @@ stages:
     - script: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-
-        # Install Playwright browsers + OS dependencies
         python -m playwright install --with-deps
       displayName: Install Dependencies
 
+    # Install Allure CLI (requires Java)
+    - script: |
+        sudo apt-get install -y default-jre
+        ALLURE_VERSION=2.27.0
+        wget -q https://github.com/allure-framework/allure2/releases/download/${ALLURE_VERSION}/allure_${ALLURE_VERSION}-1_all.deb
+        sudo dpkg -i allure_${ALLURE_VERSION}-1_all.deb
+      displayName: Install Allure CLI
+
+    # Run tests — output both JUnit XML and Allure raw results
     - script: |
         mkdir -p test-results
+        mkdir -p allure-results
 
         pytest -n auto \
           --browser chromium \
           --tracing retain-on-failure \
           --video retain-on-failure \
           --screenshot only-on-failure \
-          --junitxml=test-results/results.xml
+          --junitxml=test-results/results.xml \
+          --alluredir=allure-results
       displayName: Execute Tests
+      condition: succeededOrFailed()
       env:
         ADMIN_USERNAME: $(ADMIN_USERNAME)
         ADMIN_PASSWORD: $(ADMIN_PASSWORD)
         BROWSER: chromium
 
+    # Generate the Allure HTML report from raw results
+    - script: |
+        allure generate allure-results -o allure-report --clean
+      displayName: Generate Allure Report
+      condition: succeededOrFailed()
+
+    # Publish JUnit results (the built-in Azure test tab)
     - task: PublishTestResults@2
       condition: succeededOrFailed()
       inputs:
@@ -97,6 +114,14 @@ stages:
         testResultsFiles: 'test-results/results.xml'
         testRunTitle: 'Playwright Tests'
 
+    # Publish Allure HTML report as a downloadable artifact
+    - task: PublishBuildArtifacts@1
+      condition: succeededOrFailed()
+      inputs:
+        pathToPublish: 'allure-report'
+        artifactName: 'allure-report'
+
+    # Also keep the raw Playwright artifacts (traces, videos, screenshots)
     - task: PublishBuildArtifacts@1
       condition: succeededOrFailed()
       inputs:
