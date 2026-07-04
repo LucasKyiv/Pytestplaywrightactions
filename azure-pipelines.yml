@@ -4,72 +4,126 @@ pr: none
 pool:
   vmImage: ubuntu-latest
 
-steps:
+stages:
 
-- checkout: self
+# ---------- Stage 1: API Tests (Newman) ----------
+- stage: APITests
+  displayName: API Tests
+  jobs:
+  - job: RunAPITests
+    displayName: Run Newman API Tests
+    steps:
 
-- task: UsePythonVersion@0
-  inputs:
-    versionSpec: '3.12'
+    - checkout: self
 
-# Install Python dependencies
-- script: |
-    python -m pip install --upgrade pip
-    pip install -r requirements.txt
-    python -m playwright install --with-deps
-  displayName: Install Dependencies
+    - task: NodeTool@0
+      inputs:
+        versionSpec: '20.x'
+      displayName: Setup Node.js
 
-# Install Allure CLI (requires Java)
-- script: |
-    sudo apt-get install -y default-jre
-    ALLURE_VERSION=2.27.0
-    wget -q https://github.com/allure-framework/allure2/releases/download/${ALLURE_VERSION}/allure_${ALLURE_VERSION}-1_all.deb
-    sudo dpkg -i allure_${ALLURE_VERSION}-1_all.deb
-  displayName: Install Allure CLI
+    - script: |
+        npm install -g newman newman-reporter-htmlextra
+      displayName: Install Newman + reporters
 
-# Run tests — output both JUnit XML and Allure raw results
-- script: |
-    mkdir -p test-results
-    mkdir -p allure-results
+    - script: |
+        mkdir -p api-tests/results
+        newman run api-tests/RestfulBooker.postman_collection.json \
+          --reporters cli,junit,htmlextra \
+          --reporter-junit-export api-tests/results/junit-results.xml \
+          --reporter-htmlextra-export api-tests/results/report.html \
+          --reporter-htmlextra-title "Restful Booker API Tests"
+      displayName: Execute API Tests
 
-    pytest -n auto \
-      --browser chromium \
-      --tracing retain-on-failure \
-      --video retain-on-failure \
-      --screenshot only-on-failure \
-      --junitxml=test-results/results.xml \
-      --alluredir=allure-results
-  displayName: Execute Tests
-  condition: succeededOrFailed()
-  env:
-    ADMIN_USERNAME: $(ADMIN_USERNAME)
-    ADMIN_PASSWORD: $(ADMIN_PASSWORD)
-    BROWSER: chromium
+    - task: PublishTestResults@2
+      condition: succeededOrFailed()
+      inputs:
+        testResultsFormat: 'JUnit'
+        testResultsFiles: 'api-tests/results/junit-results.xml'
+        testRunTitle: 'API Tests (Newman)'
+        failTaskOnFailedTests: true
+      displayName: Publish API JUnit Results
 
-# Generate the Allure HTML report from raw results
-- script: |
-    allure generate allure-results -o allure-report --clean
-  displayName: Generate Allure Report
-  condition: succeededOrFailed()
+    - task: PublishBuildArtifacts@1
+      condition: succeededOrFailed()
+      inputs:
+        pathToPublish: 'api-tests/results'
+        artifactName: 'api-tests-results'
+      displayName: Publish API Test Artifacts
 
-# Publish JUnit results (the built-in Azure test tab)
-- task: PublishTestResults@2
-  condition: succeededOrFailed()
-  inputs:
-    testResultsFormat: 'JUnit'
-    testResultsFiles: 'test-results/results.xml'
-    testRunTitle: 'Playwright Tests'
+# ---------- Stage 2: Playwright UI Tests ----------
+- stage: PlaywrightTests
+  displayName: Playwright Tests
+  dependsOn: APITests
+  condition: succeeded()
+  jobs:
+  - job: RunPlaywrightTests
+    displayName: Run Playwright Tests
+    steps:
 
-# Publish Allure HTML report as a downloadable artifact
-- task: PublishBuildArtifacts@1
-  condition: succeededOrFailed()
-  inputs:
-    pathToPublish: 'allure-report'
-    artifactName: 'allure-report'
+    - checkout: self
 
-# (Optional) Also keep the raw Playwright artifacts
-- task: PublishBuildArtifacts@1
-  condition: succeededOrFailed()
-  inputs:
-    pathToPublish: 'test-results'
-    artifactName: 'playwright-results'
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '3.12'
+      displayName: Setup Python
+
+    - script: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        python -m playwright install --with-deps
+      displayName: Install Dependencies
+
+    # Install Allure CLI (requires Java)
+    - script: |
+        sudo apt-get install -y default-jre
+        ALLURE_VERSION=2.27.0
+        wget -q https://github.com/allure-framework/allure2/releases/download/${ALLURE_VERSION}/allure_${ALLURE_VERSION}-1_all.deb
+        sudo dpkg -i allure_${ALLURE_VERSION}-1_all.deb
+      displayName: Install Allure CLI
+
+    # Run tests — output both JUnit XML and Allure raw results
+    - script: |
+        mkdir -p test-results
+        mkdir -p allure-results
+
+        pytest -n auto \
+          --browser chromium \
+          --tracing retain-on-failure \
+          --video retain-on-failure \
+          --screenshot only-on-failure \
+          --junitxml=test-results/results.xml \
+          --alluredir=allure-results
+      displayName: Execute Tests
+      condition: succeededOrFailed()
+      env:
+        ADMIN_USERNAME: $(ADMIN_USERNAME)
+        ADMIN_PASSWORD: $(ADMIN_PASSWORD)
+        BROWSER: chromium
+
+    # Generate the Allure HTML report from raw results
+    - script: |
+        allure generate allure-results -o allure-report --clean
+      displayName: Generate Allure Report
+      condition: succeededOrFailed()
+
+    # Publish JUnit results (the built-in Azure test tab)
+    - task: PublishTestResults@2
+      condition: succeededOrFailed()
+      inputs:
+        testResultsFormat: 'JUnit'
+        testResultsFiles: 'test-results/results.xml'
+        testRunTitle: 'Playwright Tests'
+
+    # Publish Allure HTML report as a downloadable artifact
+    - task: PublishBuildArtifacts@1
+      condition: succeededOrFailed()
+      inputs:
+        pathToPublish: 'allure-report'
+        artifactName: 'allure-report'
+
+    # Also keep the raw Playwright artifacts (traces, videos, screenshots)
+    - task: PublishBuildArtifacts@1
+      condition: succeededOrFailed()
+      inputs:
+        pathToPublish: 'test-results'
+        artifactName: 'playwright-results'
